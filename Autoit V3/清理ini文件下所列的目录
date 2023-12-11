@@ -1,0 +1,81 @@
+#include <Array.au3>
+
+;~ 读取同目录下同名ini文件，ini文件内容见最后备注
+$iniconfig = StringSplit(@ScriptFullPath, "\")
+
+For $i = 1 To $iniconfig[0] - 1 ; Loop through the array returned by StringSplit to display the individual values.
+	$iniconfig1 = $iniconfig[$i] & "\"
+Next
+$iniconfig = StringTrimRight(@ScriptName, 4) & ".ini"
+
+
+;~ 循环读取该ini文件并取加入数组
+Local $var = IniReadSection($iniconfig, "clean")
+Local $avArray[1]
+$avArray[0] = 0
+
+If @error Then
+	MsgBox(4096, "", "错误, 读取INI文件失败.")
+Else
+	For $i = 1 To $var[0][0]
+		If $var[$i][1] <> "" Then
+			$avArray[0] = $avArray[0] + 1
+;~ 			目录宏替换系统变量
+			$var[$i][1] = StringReplace($var[$i][1], "%temp%", @TempDir)
+			$var[$i][1] = StringReplace($var[$i][1], "%USERPROFILE%", @UserProfileDir)
+			_ArrayAdd($avArray, $var[$i][1])
+		EndIf
+	Next
+EndIf
+
+For $i = 1 To $avArray[0]
+	TrayTip("清除任何托盘提示", "", 0)
+	TrayTip("", $avArray[$i], 5)
+	If StringInStr(FileGetAttrib($avArray[$i]), "D") Then
+;先使用系统自带的del程序清理一次
+		RunWait(@ComSpec & ' /c ' & 'del /F /Q "' & $avArray[$i] & '\*.*"', $avArray[$i]) ;
+		FindAllFile($avArray[$i])
+	Else
+		FileDelete($avArray[$i])
+	EndIf
+Next
+
+
+Exit
+
+Func FindAllFile($sDir)
+	Local $hSearch = FileFindFirstFile($sDir & "\*.*")
+	; 检查搜索是否成功
+	If $hSearch = -1 Then Return
+	While 1
+		Local $sFile = FileFindNextFile($hSearch)
+		If @error Then ExitLoop
+
+		If @extended Then
+
+			FindAllFile($sDir & "\" & $sFile)
+			FileSetAttrib($sDir & "\" & $sFile, "-RSH", 1)
+			DirRemove($sDir & "\" & $sFile, 1)
+			ContinueLoop
+		EndIf
+		For $temp = 1 To 3
+			FileDelete($sDir & "\" & $sFile)
+			DirRemove($sDir & "\" & $sFile, 1)
+			FileSetAttrib($sDir & "\" & $sFile, "-RSH", 1)
+		Next
+	WEnd
+	; 关闭搜索句柄
+	FileClose($hSearch)
+EndFunc   ;==>FindAllFile
+
+
+
+#comments-start
+;~ ini文件示例
+
+[clean]
+1=%Temp%
+2=C:\Windows\temp
+3=C:\My Log.txt
+
+#comments-end
